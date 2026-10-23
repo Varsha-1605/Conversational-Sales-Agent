@@ -1,0 +1,8 @@
+﻿"location_id","location_name","location_type","address","supports_click_collect","supports_try_on","ships_to_home"
+"LOC-W01","Bengaluru Warehouse","warehouse","Hosur Road, Electronic City, Bengaluru 560100","False","False","True"
+"LOC-S01","Indiranagar Store","store","100 Feet Road, Indiranagar, Bengaluru 560038","True","True","False"
+"LOC-S02","Koramangala Store","store","80 Feet Road, Koramangala 4th Block, Bengaluru 560034","True","True","False"
+"LOC-S03","Jayanagar Store","store","11th Main Road, Jayanagar 4th Block, Bengaluru 560011","True","True","False"
+"LOC-S04","Whitefield Mall Store","store","ITPL Main Road, Whitefield, Bengaluru 560066","True","True","False"
+"LOC-S05","Malleshwaram Store","store","Sampige Road, Malleshwaram, Bengaluru 560003","True","False","False"
+"LOC-S06","HSR Layout Store","store","27th Main Road, HSR Layout Sector 1, Bengaluru 560102","False","True","False"

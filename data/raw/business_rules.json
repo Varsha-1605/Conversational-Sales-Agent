@@ -1,0 +1,241 @@
+{
+  "order_statuses": {
+    "values": [
+      "placed",
+      "ready_for_pickup",
+      "item_not_found",
+      "shipped",
+      "delivered",
+      "collected",
+      "cancelled"
+    ],
+    "ship_to_home": [
+      "placed",
+      "shipped",
+      "delivered"
+    ],
+    "click_collect": [
+      "placed",
+      "ready_for_pickup",
+      "collected"
+    ],
+    "click_collect_item_missing": [
+      "placed",
+      "item_not_found"
+    ],
+    "cancellation": "cancelled, from placed, ready_for_pickup or item_not_found (per the cancellation rule)"
+  },
+  "currency": "INR",
+  "loyalty": {
+    "point_value_inr": "0.50",
+    "min_points_per_order": 100,
+    "max_share_of_order_value": "0.20",
+    "points_returned_on": "full cancellation of the order; not returned on partial returns"
+  },
+  "promotions": [
+    {
+      "rule_id": "PROMO-FEST-500",
+      "description": "Festive offer: Rs 500 off carts of Rs 3,000 or more",
+      "condition": {
+        "min_cart_inr": "3000.00"
+      },
+      "discount": {
+        "type": "amount",
+        "value": "500.00"
+      },
+      "scope": "all",
+      "valid_from": "2026-10-15",
+      "valid_to": "2026-11-15"
+    },
+    {
+      "rule_id": "PROMO-ETHNIC-10",
+      "description": "10% off ethnic wear (time-limited)",
+      "condition": {
+        "category_in": [
+          "Men's Ethnic Wear",
+          "Women's Ethnic Wear"
+        ]
+      },
+      "discount": {
+        "type": "percent",
+        "value": "10"
+      },
+      "scope": "matching lines",
+      "valid_from": "2026-10-20",
+      "valid_to": "2026-11-10"
+    },
+    {
+      "rule_id": "PROMO-MONSOON-15",
+      "description": "Monsoon sale: 15% off jackets (expired)",
+      "condition": {
+        "subcategory_in": [
+          "Jackets"
+        ]
+      },
+      "discount": {
+        "type": "percent",
+        "value": "15"
+      },
+      "scope": "matching lines",
+      "valid_from": "2026-07-01",
+      "valid_to": "2026-09-30"
+    }
+  ],
+  "coupons": [
+    {
+      "code": "WELCOME300",
+      "description": "Rs 300 off a first order of Rs 1,500 or more",
+      "condition": {
+        "min_cart_inr": "1500.00",
+        "first_order_only": true,
+        "first_order_means": "first order placed through this app"
+      },
+      "discount": {
+        "type": "amount",
+        "value": "300.00"
+      },
+      "usage_limit_per_customer": 1,
+      "valid_from": "2026-01-01",
+      "valid_to": "2026-12-31"
+    },
+    {
+      "code": "SUMMER200",
+      "description": "Rs 200 off (expired)",
+      "condition": {
+        "min_cart_inr": "1000.00"
+      },
+      "discount": {
+        "type": "amount",
+        "value": "200.00"
+      },
+      "usage_limit_per_customer": 1,
+      "valid_from": "2026-04-01",
+      "valid_to": "2026-06-30"
+    }
+  ],
+  "personalized_offers": [
+    {
+      "rule_id": "PERS-GOLD-FW15",
+      "description": "Gold tier: 15% off footwear",
+      "condition": {
+        "loyalty_tier": "Gold",
+        "category_in": [
+          "Men's Footwear",
+          "Footwear"
+        ]
+      },
+      "discount": {
+        "type": "percent",
+        "value": "15"
+      },
+      "valid_from": "2026-10-20",
+      "valid_to": "2026-11-30",
+      "requires_personalization_allowed": true
+    }
+  ],
+  "stacking": {
+    "order": [
+      "best single automatic promotion",
+      "one coupon",
+      "personalized offer",
+      "loyalty points"
+    ],
+    "max_coupons_per_order": 1,
+    "total_cannot_go_below_zero": true
+  },
+  "seasonal_calendar": {
+    "2026-10": [
+      "festive",
+      "wedding season"
+    ],
+    "2026-11": [
+      "festive",
+      "wedding season",
+      "winter"
+    ],
+    "2026-12": [
+      "winter",
+      "wedding season"
+    ],
+    "always": [
+      "all season"
+    ]
+  },
+  "delivery_slots": {
+    "windows": [
+      [
+        "10:00",
+        "14:00"
+      ],
+      [
+        "14:00",
+        "18:00"
+      ],
+      [
+        "18:00",
+        "21:00"
+      ]
+    ],
+    "capacity_per_window": 20,
+    "earliest": "next day",
+    "days": "daily"
+  },
+  "try_on_slots": {
+    "slot_minutes": 30,
+    "capacity_per_slot": 3,
+    "first_slot": "1 hour after opening",
+    "last_slot": "1 hour before closing",
+    "only_on_open_days": true
+  },
+  "stock_holds": {
+    "checkout_minutes": 15,
+    "try_on": "until the end of the booked slot",
+    "click_collect_ready_days": 3,
+    "after_click_collect_expiry": "cancel the order with a full refund"
+  },
+  "cancellation": {
+    "allowed_until": {
+      "ship_to_home": "shipped",
+      "click_collect": "collected"
+    },
+    "refund": "full",
+    "fee_inr": "0.00"
+  },
+  "modification": {
+    "allowed": [
+      "remove a line",
+      "reduce quantity"
+    ],
+    "allowed_until": "shipped or prepared",
+    "offers": "re-checked against the new subtotal",
+    "not_allowed": "adding items or anything that raises the price; the customer places a new order"
+  },
+  "returns_exchanges": {
+    "window_days": 15,
+    "window_starts": "delivered or collected date",
+    "refund_when": "after the item is received",
+    "fee_inr": "0.00",
+    "exchange": "same product, different size or colour, same price only"
+  },
+  "payment": {
+    "capture": "immediately after authorization",
+    "payment_succeeds_but_order_fails": "automatic full refund",
+    "offset_refunds": false
+  },
+  "item_not_found_at_pickup": {
+    "offer": [
+      "another store with stock",
+      "home delivery",
+      "cancellation with full refund"
+    ]
+  },
+  "stale_stock": {
+    "threshold_days": 30,
+    "recheck_available": false,
+    "behaviour": "show availability as not confirmed; do not confirm an order or reservation on it"
+  },
+  "sessions": {
+    "kiosk_inactivity_minutes": 2,
+    "session_inactivity_minutes": 30
+  }
+}
