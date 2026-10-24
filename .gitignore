@@ -6,6 +6,20 @@ dist/
 wheels/
 *.egg-info
 
+
+.claude/
+
 # Virtual environments
 .venv
+
+# Secrets: local settings files; only the names template is committed
 .env
+.env.*
+!.env.example
+
+# Test cache
+.pytest_cache/
+
+# Database backups (DATABASE.md section 11 suggests pg_dump > backup.sql)
+*.dump
+backup*.sql
