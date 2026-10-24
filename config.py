@@ -4,8 +4,8 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# __file__ is 'backend/config.py'
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# __file__ is 'config.py' at the project root: the one place every part of the project reads its settings from
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 class Settings(BaseSettings):

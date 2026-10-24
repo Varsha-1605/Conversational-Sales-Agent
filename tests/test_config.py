@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from backend.config import Settings
+from config import Settings
 
 REQUIRED = {
     "POSTGRES_DB": "sales",

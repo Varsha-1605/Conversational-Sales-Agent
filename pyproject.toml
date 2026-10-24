@@ -21,7 +21,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests"]
+testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "integration: needs the PostgreSQL and SQL Server containers running",

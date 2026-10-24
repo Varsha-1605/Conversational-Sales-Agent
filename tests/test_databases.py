@@ -3,7 +3,7 @@ import csv
 import pytest
 from sqlalchemy import text
 
-from backend.config import PROJECT_ROOT
+from config import PROJECT_ROOT
 
 pytestmark = pytest.mark.integration
 

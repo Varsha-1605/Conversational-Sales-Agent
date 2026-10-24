@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import URL
 
-from backend.config import PROJECT_ROOT, get_settings
+from config import PROJECT_ROOT, get_settings
 from backend.db.schema import metadata
 
 
