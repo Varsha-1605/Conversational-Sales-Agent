@@ -1,6 +1,6 @@
 from sqlalchemy import (
     MetaData, Table, Column, String, Text, Integer, Boolean, Date, DateTime, Numeric,
-    ForeignKey, PrimaryKeyConstraint, UniqueConstraint, CheckConstraint, Index, text,
+    ForeignKey, PrimaryKeyConstraint, UniqueConstraint, CheckConstraint, Index, Sequence, text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -19,6 +19,17 @@ metadata = MetaData(naming_convention={
 CHANNELS = ("web", "app", "whatsapp", "kiosk", "voice")
 AGE_BANDS = ("16-17", "18-24", "25-34", "35-40")
 LOYALTY_TIERS = ("Base", "Silver", "Gold")
+
+
+# DB-36: every generated ID is a prefix plus a number from its own sequence, so IDs stay unique under
+# concurrent writes. The formats are in backend/domain/ids.py. Customers continue after the 12 seeded ones.
+ID_SEQUENCES = {
+    kind: Sequence(f"{kind}_id_seq", start=start, metadata=metadata)
+    for kind, start in (
+        ("customer", 13), ("order", 1), ("checkout", 1), ("collection", 1), ("payment", 1), ("refund", 1),
+        ("hold", 1), ("reservation", 1), ("change", 1), ("return", 1), ("run", 1),
+    )
+}
 
 
 def one_of(column, values, name):
@@ -121,7 +132,9 @@ orders = Table("orders", metadata,
                one_of("fulfillment_method", ("ship_to_home", "click_collect", "in_store"), "fulfillment_method"),
                one_of("order_status", ("placed", "ready_for_pickup", "item_not_found", "shipped", "delivered", "collected", "cancelled"), "order_status"),
                CheckConstraint("net_amount_due >= 0", name="net_amount_due"),
-               CheckConstraint("points_redeemed >= 0", name="points_redeemed"))
+               CheckConstraint("points_redeemed >= 0", name="points_redeemed"),
+               Index("ix_orders_customer_id_confirmed_at", "customer_id", "confirmed_at"), # Orders page; first-order and coupon checks
+               Index("ix_orders_fulfillment_location_id_order_status", "fulfillment_location_id", "order_status")) # associate pickup queue
 
 # 4.3 payment_attempts
 payment_attempts = Table("payment_attempts", metadata,
@@ -156,7 +169,11 @@ payment_attempts = Table("payment_attempts", metadata,
                              " AND authorized_at IS NULL AND captured_at IS NULL)"
                              " OR (outcome IN ('failed', 'timeout') AND failed_stage = 'capture'"
                              " AND authorized_at IS NOT NULL AND captured_at IS NULL)",
-                             name="stage_combination"))
+                             name="stage_combination"),
+                         Index("ix_payment_attempts_order_id", "order_id"), # reconciliation: payments of an order
+                         # at most one successful attempt per payment operation (PY-05, DB-27)
+                         Index("uq_payment_attempts_one_success", "checkout_key", unique=True,
+                               postgresql_where=text("outcome = 'success'")))
 
 # 4.4 refunds
 refunds = Table("refunds", metadata,
@@ -173,7 +190,12 @@ refunds = Table("refunds", metadata,
                 one_of("refund_status", ("initiated", "completed", "failed"), "refund_status"),
                 CheckConstraint("amount > 0", name="amount"),
                 CheckConstraint("order_id IS NOT NULL OR source_type = 'stock_unavailable'", name="order_or_stock_unavailable"),
-                CheckConstraint("order_id IS NOT NULL OR payment_id IS NOT NULL", name="order_or_payment"))
+                CheckConstraint("order_id IS NOT NULL OR payment_id IS NOT NULL", name="order_or_payment"),
+                Index("ix_refunds_order_id", "order_id"), # reconciliation: refund chains of an order
+                # one chain root per cause (DATA_SPEC 4.4, DB-27); order_id is empty for stock_unavailable,
+                # so NULLs must count as equal or two roots for one checkout would both be accepted
+                Index("uq_refunds_chain_root", "order_id", "source_type", "source_ref", unique=True,
+                      postgresql_where=text("retry_of IS NULL"), postgresql_nulls_not_distinct=True))
 
 # 4.5 stock_holds
 stock_holds = Table("stock_holds", metadata,
@@ -189,7 +211,8 @@ stock_holds = Table("stock_holds", metadata,
                     one_of("reference_type", ("checkout", "reservation", "order", "exchange"), "reference_type"),
                     one_of("hold_status", ("active", "committed", "released", "lapsed"), "hold_status"),
                     CheckConstraint("quantity > 0", name="quantity"),
-                    Index("ix_stock_holds_availability", "sku", "location_id", "hold_status")) # availability sums
+                    Index("ix_stock_holds_availability", "sku", "location_id", "hold_status"), # availability sums
+                    Index("ix_stock_holds_reference", "reference_type", "reference_id")) # commit or release a checkout's, order's or reservation's holds
 
 # 4.6 reservations
 reservations = Table("reservations", metadata,
@@ -201,7 +224,9 @@ reservations = Table("reservations", metadata,
                      Column("reservation_status", String(20), nullable=False),
                      json_list("status_history"),
                      timestamp("confirmed_at", nullable=False),
-                     one_of("reservation_status", ("confirmed", "customer_arrived", "completed", "lapsed", "cancelled"), "reservation_status"))
+                     one_of("reservation_status", ("confirmed", "customer_arrived", "completed", "lapsed", "cancelled"), "reservation_status"),
+                     Index("ix_reservations_location_id_reservation_status", "location_id", "reservation_status"), # associate try-on queue
+                     Index("ix_reservations_customer_id", "customer_id")) # kiosk "today's try-on"
 
 # 4.9 agent_runs
 agent_runs = Table("agent_runs", metadata,

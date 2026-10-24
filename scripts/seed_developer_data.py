@@ -1,9 +1,10 @@
 from pathlib import Path
 from datetime import date
+from decimal import Decimal
 import argparse
 import sys
 import pandas as pd
-from sqlalchemy import Integer, Boolean, Date, inspect, select, func
+from sqlalchemy import Integer, Boolean, Date, Numeric, inspect, select, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # __file__ is 'scripts/seed_developer_data.py'
@@ -12,18 +13,24 @@ project_root = script_dir.parents[0] # climbs up 1 level to project root
 sys.path.insert(0, str(project_root)) # so that 'backend' can be imported
 
 from backend.db.postgres import postgres_engine
-from backend.db.schema import customers, purchase_history, AGE_BANDS, LOYALTY_TIERS, CHANNELS
+from backend.db.schema import (
+    customers, purchase_history, journeys, test_payment_methods, AGE_BANDS, LOYALTY_TIERS, CHANNELS,
+)
 
 developer_dir = project_root / "data" / "developers"
 client_dir = project_root / "data" / "raw"
+fixtures_dir = project_root / "fixtures"
 
-parser = argparse.ArgumentParser(description="Load the developer-side data (customers, purchase history) into PostgreSQL.")
+parser = argparse.ArgumentParser(description="Load the developer-side data (customers, purchase history, "
+                                             "test payment methods) into PostgreSQL.")
 parser.add_argument("--dry-run", action="store_true",
                     help="read and check the files only; do not connect to the database")
 args = parser.parse_args()
 
 # 1. The tables come from backend/db/schema.py and are created by the Alembic migrations (alembic upgrade head)
-tables = [customers, purchase_history] # customers first, purchase_history refers to it
+tables = [customers, purchase_history, test_payment_methods] # customers first, the others refer to it
+SOURCES = {"customers": developer_dir, "purchase_history": developer_dir,
+           "test_payment_methods": fixtures_dir} # DATA_SPEC section 5 fixtures (DB-34)
 
 ENUMS = {"age_band": AGE_BANDS, "loyalty_tier": LOYALTY_TIERS, "device_preference": CHANNELS}
 
@@ -44,13 +51,15 @@ def convert(column, value):
         return value == "True"
     if isinstance(column.type, Date):
         return date.fromisoformat(value)
+    if isinstance(column.type, Numeric):
+        return Decimal(value)
     if column.name in ENUMS and value not in ENUMS[column.name]:
         raise ValueError(f"{value!r} is not one of {ENUMS[column.name]}")
     return value
 
 
 def read_rows(table):
-    csv_path = developer_dir / f"{table.name}.csv"
+    csv_path = SOURCES[table.name] / f"{table.name}.csv"
     df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
     loaded = [column for column in table.columns if column.name not in NOT_IN_FILE.get(table.name, set())]
     expected = {column.name for column in loaded} | NOT_LOADED.get(table.name, set())
@@ -71,20 +80,28 @@ def read_rows(table):
 
 
 # checks across files; the database cannot enforce references into SQL Server (DATA_SPEC 1)
-def check_references(customer_rows, history_rows):
+def check_references(customer_rows, history_rows, method_rows):
     problems = []
     stores = set(pd.read_csv(client_dir / "locations.csv", dtype=str, keep_default_na=False)
                  .query("location_type == 'store'")["location_id"])
     skus = set(pd.read_csv(client_dir / "product_variants.csv", dtype=str, keep_default_na=False)["sku"])
+    staff_emails = {email.lower() for email in
+                    pd.read_csv(client_dir / "staff_data.csv", dtype=str, keep_default_na=False)["email"]}
     customer_ids = {row["customer_id"] for row in customer_rows}
     for row in customer_rows:
         if row["preferred_store_id"] not in stores:
             problems.append(f"{row['customer_id']}: preferred_store_id {row['preferred_store_id']} is not a store in locations.csv")
+        # an email may belong to a customer or a staff member, never both (AC-22, DB-25); the address itself is not printed
+        if row["email"].lower() in staff_emails:
+            problems.append(f"{row['customer_id']}: email is also a staff email in staff_data.csv")
     for row in history_rows:
         if row["customer_id"] not in customer_ids:
             problems.append(f"purchase_history: {row['customer_id']} is not in customers.csv")
         if row["sku"] not in skus:
             problems.append(f"purchase_history: {row['sku']} is not in product_variants.csv")
+    for row in method_rows:
+        if row["customer_id"] is not None and row["customer_id"] not in customer_ids:
+            problems.append(f"test_payment_methods: {row['method_ref']} belongs to {row['customer_id']}, who is not in customers.csv")
     if problems:
         raise ValueError("Data checks failed, nothing was loaded:\n  " + "\n  ".join(problems))
 
@@ -94,7 +111,7 @@ all_rows = {}
 for table in tables:
     all_rows[table.name] = read_rows(table)
     print(f"Read {table.name}.csv: {len(all_rows[table.name])} rows")
-check_references(all_rows["customers"], all_rows["purchase_history"])
+check_references(all_rows["customers"], all_rows["purchase_history"], all_rows["test_payment_methods"])
 
 if args.dry_run:
     print("Dry run complete. Nothing was loaded.")
@@ -104,7 +121,7 @@ if args.dry_run:
 print("Connecting to PostgreSQL...")
 engine = postgres_engine()
 
-missing = [table.name for table in tables if not inspect(engine).has_table(table.name)]
+missing = [table.name for table in tables + [journeys] if not inspect(engine).has_table(table.name)]
 if missing:
     raise SystemExit(f"Tables not found: {', '.join(missing)}. Run 'alembic upgrade head' first.")
 
@@ -116,5 +133,12 @@ with engine.begin() as connection:
         connection.execute(pg_insert(table).on_conflict_do_nothing(), all_rows[table.name])
         after = connection.execute(select(func.count()).select_from(table)).scalar_one()
         print(f"Loaded {table.name}: {after - before} new rows ({after} in total)")
+
+    # one empty journey per customer (DATA_SPEC 4.1, DB-35); sign-up creates the row for new customers
+    before = connection.execute(select(func.count()).select_from(journeys)).scalar_one()
+    connection.execute(pg_insert(journeys).from_select(["customer_id"], select(customers.c.customer_id))
+                       .on_conflict_do_nothing())
+    after = connection.execute(select(func.count()).select_from(journeys)).scalar_one()
+    print(f"Created journeys: {after - before} new rows ({after} in total)")
 
 print("Seeding complete!")

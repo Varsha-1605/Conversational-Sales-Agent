@@ -7,7 +7,7 @@ import urllib.parse
 import os
 from sqlalchemy import (
     create_engine, MetaData, Table, Column, String, Integer, Numeric, Boolean,
-    ForeignKey, PrimaryKeyConstraint, CheckConstraint, insert, delete,
+    ForeignKey, PrimaryKeyConstraint, CheckConstraint, Index, insert, delete,
 )
 from sqlalchemy.dialects.mssql import TIME, DATETIMEOFFSET
 from dotenv import load_dotenv
@@ -59,7 +59,9 @@ Table("product_variants", metadata,
       Column("size", String(20), nullable=False),
       Column("color", String(30), nullable=False),
       Column("barcode", String(20), nullable=False, unique=True),
-      Column("list_price", Numeric(12, 2), nullable=False))
+      Column("list_price", Numeric(12, 2), nullable=False),
+      # SQL Server does not index foreign-key columns by itself; product pages read variants by product (DB-33)
+      Index("ix_product_variants_product_id", "product_id"))
 
 Table("product_recommendations", metadata,
       Column("product_id", String(20), ForeignKey("dbo.products.product_id"), nullable=False),

@@ -1,0 +1,4 @@
+method_ref,customer_id,method_type,display_label,gift_card_code,gift_card_balance,simulated_outcome,simulated_failure_stage
+TPM-CARD-01,CUST-0002,saved_card,Test Visa ending 1111,,,success,
+TPM-GC-01,,gift_card,Test Gift Card ••7788,GC-TEST-7788,1000.00,declined,authorization
+TPM-CARD-02,CUST-0009,saved_card,Test Mastercard ending 2222,,,failed,capture

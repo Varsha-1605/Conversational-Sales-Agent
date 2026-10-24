@@ -1,10 +1,10 @@
 from contextvars import ContextVar
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import json
 import logging
 import sys
 
-IST = timezone(timedelta(hours=5, minutes=30), "IST")  # India has no daylight saving, so a fixed offset is exact
+from backend.domain.clock import IST
 
 # set once per request (later by the API middleware); every log line in that request carries it (NF-18)
 trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
