@@ -9,11 +9,12 @@ AT = datetime(2026, 10, 24, 12, 0, tzinfo=IST)
 
 def order_row(order_id, *, checkout_key=None, customer_id="CUST-0002", status="placed", method="ship_to_home",
               location_id="LOC-W01", net_amount_due="999.00", lines=(), returns=(), points_redeemed=0,
-              delivery_slot=None, confirmed_at=AT):
+              delivery_slot=None, applied_offers=(), confirmed_at=AT):
     return {
         "order_id": order_id, "customer_id": customer_id, "checkout_key": checkout_key or f"CHK-{order_id}",
         "order_channel": "web", "fulfillment_method": method, "fulfillment_location_id": location_id,
         "delivery_slot": delivery_slot, "lines": list(lines), "returns": list(returns),
+        "applied_offers": list(applied_offers),
         "subtotal": Decimal(net_amount_due), "final_total": Decimal(net_amount_due),
         "net_amount_due": Decimal(net_amount_due), "points_redeemed": points_redeemed,
         "order_status": status, "status_history": [], "confirmed_at": confirmed_at,

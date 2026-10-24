@@ -1,6 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time
-from threading import Barrier
 from time import sleep
 
 import pytest
@@ -13,25 +11,12 @@ from backend.domain.database_locks import lock_customer_coupons, lock_delivery_w
 from backend.domain.ids import next_id
 from backend.domain.stock_availability import calculate_available_stock
 from backend.domain.transaction import open_transaction, write_operation
+from tests.race_winners import RACE_WINDOW_SECONDS, count_race_winners
 from tests.sample_rows import hold_row, order_row
 
 pytestmark = pytest.mark.integration
 
 CLOCK = FixedClock(datetime(2026, 10, 24, 12, 0, tzinfo=IST))
-# the time between a buyer's check and its write; without the lock the other buyer's check would pass inside it
-RACE_WINDOW_SECONDS = 0.3
-
-
-def count_race_winners(attempt):
-    """Run `attempt` in two threads released at the same moment; return how many succeeded."""
-    barrier = Barrier(2)
-
-    def contender(_):
-        barrier.wait()
-        return attempt()
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        return sum(pool.map(contender, range(2)))
 
 
 @write_operation

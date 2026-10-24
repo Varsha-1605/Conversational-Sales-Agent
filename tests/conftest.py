@@ -10,12 +10,14 @@ import logging
 import os
 import subprocess
 import sys
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import create_engine, delete, func, select, text
 from sqlalchemy.pool import NullPool
 
 from backend.db.connect_postgres import postgres_engine, postgres_url
+from backend.db.repositories import inventory
 from backend.db.schema import agent_runs, metadata, orders, payment_attempts, refunds, reservations, stock_holds
 from backend.db.connect_sqlserver import sqlserver_engine
 from backend.logging_setup import SERVER_LOGGERS
@@ -131,3 +133,11 @@ def sql_server(settings):
     engine = sqlserver_engine(settings=settings)
     yield engine
     engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def stock_data_now(sql_server):
+    """An hour after the client's stock was last refreshed. At this moment the seed's current records are fresh and
+    its one old record is stale, however long ago the data was loaded or re-dated."""
+    with sql_server.connect() as client:
+        return inventory.stock(client, "SKU-1001-M-WHI", "LOC-W01").last_updated_at + timedelta(hours=1)
