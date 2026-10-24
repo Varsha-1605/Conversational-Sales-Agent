@@ -1,6 +1,8 @@
 from logging.config import fileConfig
 from alembic import context
-from backend.db.postgres import postgres_url, postgres_engine
+from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
+from backend.db.connect_postgres import postgres_url
 from backend.db.schema import metadata
 
 config = context.config
@@ -23,7 +25,8 @@ def run_migrations_offline():
 
 
 def run_migrations_online():
-    with postgres_engine().connect() as connection:
+    # one plain connection: a migration must not be cut off by the app's per-statement time limit
+    with create_engine(postgres_url(), poolclass=NullPool).connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()

@@ -2,21 +2,18 @@ from pathlib import Path
 from datetime import datetime, time
 from decimal import Decimal
 import argparse
+import sys
 import pandas as pd
-import urllib.parse
-import os
 from sqlalchemy import (
-    create_engine, MetaData, Table, Column, String, Integer, Numeric, Boolean,
+    MetaData, Table, Column, String, Integer, Numeric, Boolean,
     ForeignKey, PrimaryKeyConstraint, CheckConstraint, Index, insert, delete,
 )
 from sqlalchemy.dialects.mssql import TIME, DATETIMEOFFSET
-from dotenv import load_dotenv
 
-# __file__ is 'scripts/ingest_input_data.py'
-script_dir = Path(__file__).resolve().parent # points to scripts
-project_root = script_dir.parents[0] # climbs up 1 level to project root
+project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(project_root))
 
-load_dotenv(project_root / ".env")
+from backend.db.connect_sqlserver import sqlserver_engine # settings come from config.py (.env)
 
 data_dir = project_root / "data" / "raw"
 
@@ -167,29 +164,9 @@ if args.dry_run:
     print("Dry run complete. Nothing was loaded.")
     raise SystemExit(0)
 
-db_host = os.getenv("SQL_SERVER_HOST", "localhost")
-db_port = os.getenv("SQL_SERVER_PORT", "1433")
-db_user = os.getenv("SQL_ADMIN_USER")
-db_password = os.getenv("SQL_ADMIN_PASSWORD")
-
-# 3. Connect to Docker MSSQL Server
+# 3. Connect to Docker MSSQL Server with the admin login (the app itself only ever has the read-only login)
 print("Connecting to MSSQL Database...")
-connection_string = (
-        f"DRIVER={{SQL Server}};"
-        f"SERVER={db_host},{db_port};"
-        f"DATABASE=master;"
-        f"UID={db_user};"
-        f"PWD={db_password};"
-        f"Encrypt=no;"
-        f"TrustServerCertificate=yes;"
-    )
-
-params = urllib.parse.quote_plus(connection_string)
-
-engine = create_engine(
-    f"mssql+pyodbc:///?odbc_connect={params}",
-    use_setinputsizes=False,
-)
+engine = sqlserver_engine(admin=True)
 
 # 4. Create the tables if they are missing, then replace their rows in one transaction
 if args.reset:

@@ -6,7 +6,7 @@ import sys
 
 from backend.domain.clock import IST
 
-# set once per request (later by the API middleware); every log line in that request carries it (NF-18)
+# set once per request by the API middleware; every log line in that request carries it (NF-18)
 trace_id_var: ContextVar[str | None] = ContextVar("trace_id", default=None)
 
 
@@ -26,21 +26,30 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(entry, ensure_ascii=False)
 
 
+# the server's own loggers; uvicorn gives them plain-text handlers of their own at start-up
+SERVER_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
+
+
 def configure_logging(level=logging.INFO):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
     root.handlers[:] = [handler]
     root.setLevel(level)
+    # send the server's lines through the same JSON handler, so every line in the log has one format
+    for name in SERVER_LOGGERS:
+        server_logger = logging.getLogger(name)
+        server_logger.handlers.clear()
+        server_logger.propagate = True
 
 
 def mask_name(name):
-    # "Varsha Dewangan" -> "V*** D***" (design page 16)
+    """A name safe to log: "Varsha Dewangan" -> "V*** D***" (design page 16); empty -> "***"."""
     parts = (name or "").split()
     return " ".join(f"{part[0]}***" for part in parts) if parts else "***"
 
 
 def mask_email(email):
-    # "varsha@example.com" -> "v***@example.com"
+    """An email safe to log: "varsha@example.com" -> "v***@example.com"; anything else -> "***"."""
     local, at, domain = (email or "").partition("@")
     return f"{local[:1]}***@{domain}" if at and local and domain else "***"

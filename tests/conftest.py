@@ -3,30 +3,36 @@
 Tests marked `integration` need both containers running. They use a separate PostgreSQL
 database (settings.test_database), dropped and rebuilt from the migrations and the
 developer seed at the start of each run. The real database and the client data in
-SQL Server are never changed by tests.
+SQL Server are never changed by tests: SQL Server is reached only through the app's
+read-only login.
 """
+import logging
 import os
 import subprocess
 import sys
-import urllib.parse
 
 import pytest
 from sqlalchemy import create_engine, func, select, text
-from sqlalchemy.engine import URL
+from sqlalchemy.pool import NullPool
 
-from config import PROJECT_ROOT, get_settings
+from backend.db.connect_postgres import postgres_engine, postgres_url
 from backend.db.schema import metadata
+from backend.db.connect_sqlserver import sqlserver_engine
+from backend.logging_setup import SERVER_LOGGERS
+from config import PROJECT_ROOT, get_settings
 
 
-def postgres_url(settings, database):
-    return URL.create(
-        "postgresql+psycopg",
-        username=settings.postgres_user,
-        password=settings.postgres_password.get_secret_value(),
-        host=settings.postgres_host,
-        port=settings.postgres_port,
-        database=database,
-    )
+@pytest.fixture
+def restore_logging():
+    """configure_logging() rewires the root and server loggers; put pytest's setup back afterwards.
+    Call configure_logging() inside the test itself, so its handler writes to capsys's stdout."""
+    loggers = [logging.getLogger(), *(logging.getLogger(name) for name in SERVER_LOGGERS)]
+    saved = [(logger, logger.handlers[:], logger.level, logger.propagate) for logger in loggers]
+    yield
+    for logger, handlers, level, propagate in saved:
+        logger.handlers[:] = handlers
+        logger.setLevel(level)
+        logger.propagate = propagate
 
 
 def count_rows(engine):
@@ -35,6 +41,14 @@ def count_rows(engine):
             table.name: connection.execute(select(func.count()).select_from(table)).scalar_one()
             for table in metadata.sorted_tables
         }
+
+
+def run_on_database(command, database):
+    """Run a project command (migration, seed) with POSTGRES_DB pointed at the given database."""
+    env = {**os.environ, "POSTGRES_DB": database}  # the migration and the seed script read POSTGRES_DB
+    result = subprocess.run([sys.executable, *command], cwd=PROJECT_ROOT, env=env, capture_output=True, text=True)
+    if result.returncode != 0:
+        pytest.fail(f"{' '.join(command)} failed on {database}:\n{result.stderr[-2000:]}")
 
 
 @pytest.fixture(scope="session")
@@ -49,7 +63,7 @@ def row_counts():
 
 @pytest.fixture(scope="session")
 def real_database(settings):
-    engine = create_engine(postgres_url(settings, settings.postgres_db))
+    engine = postgres_engine(settings=settings)
     yield engine
     engine.dispose()
 
@@ -61,44 +75,40 @@ def real_counts_before(real_database):
 
 
 @pytest.fixture(scope="session")
-def test_database(settings, real_counts_before):
-    name = settings.test_database
-    if name == settings.postgres_db:
-        pytest.fail("POSTGRES_TEST_DB must differ from POSTGRES_DB: tests never use the real database")
+def test_database_name(settings):
+    try:
+        return settings.test_database  # refuses a name that does not look like a test database
+    except ValueError as error:
+        pytest.fail(str(error))
 
+
+@pytest.fixture(scope="session")
+def test_database(settings, test_database_name, real_counts_before):
     # 1. drop and create the test database (CREATE DATABASE cannot run inside a transaction)
-    admin = create_engine(postgres_url(settings, settings.postgres_db), isolation_level="AUTOCOMMIT")
+    admin = create_engine(postgres_url(settings=settings), isolation_level="AUTOCOMMIT", poolclass=NullPool)
     with admin.connect() as connection:
-        connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-        connection.execute(text(f'CREATE DATABASE "{name}"'))
+        connection.execute(text(f'DROP DATABASE IF EXISTS "{test_database_name}" WITH (FORCE)'))
+        connection.execute(text(f'CREATE DATABASE "{test_database_name}"'))
     admin.dispose()
 
     # 2. build the schema and load the seed with the project's own tools, pointed at the test database
-    env = {**os.environ, "POSTGRES_DB": name}  # the migration and the seed script read POSTGRES_DB
-    for command in (
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
-        [sys.executable, "scripts/seed_developer_data.py"],
-    ):
-        result = subprocess.run(command, cwd=PROJECT_ROOT, env=env, capture_output=True, text=True)
-        if result.returncode != 0:
-            pytest.fail(f"{' '.join(command[1:])} failed on the test database:\n{result.stderr[-2000:]}")
+    run_on_database(["-m", "alembic", "upgrade", "head"], test_database_name)
+    run_on_database(["scripts/seed_developer_data.py"], test_database_name)
 
-    engine = create_engine(postgres_url(settings, name))
+    engine = postgres_engine(test_database_name, settings=settings)
     yield engine
     engine.dispose()
 
 
 @pytest.fixture(scope="session")
+def seed_test_database(test_database_name):
+    """Re-run the seed on the test database (it adds only missing rows)."""
+    return lambda: run_on_database(["scripts/seed_developer_data.py"], test_database_name)
+
+
+@pytest.fixture(scope="session")
 def sql_server(settings):
-    # client data: tests only read it
-    params = urllib.parse.quote_plus(
-        "DRIVER={SQL Server};"
-        f"SERVER={settings.sql_server_host},{settings.sql_server_port};"
-        "DATABASE=master;"
-        f"UID={settings.sql_admin_user};"
-        f"PWD={settings.sql_admin_password.get_secret_value()};"
-        "Encrypt=no;TrustServerCertificate=yes;"
-    )
-    engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}", use_setinputsizes=False)
+    # the app's read-only login: tests can only read the client data
+    engine = sqlserver_engine(settings=settings)
     yield engine
     engine.dispose()

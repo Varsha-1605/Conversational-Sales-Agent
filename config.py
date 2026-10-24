@@ -1,11 +1,15 @@
 from functools import lru_cache
 from pathlib import Path
+import re
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # __file__ is 'config.py' at the project root: the one place every part of the project reads its settings from
 PROJECT_ROOT = Path(__file__).resolve().parent
+
+# a test database is dropped and rebuilt on every test run, so its name must be unmistakably a test database
+_TEST_DATABASE_NAME = re.compile(r"[a-z0-9_]+_test")
 
 
 class Settings(BaseSettings):
@@ -27,13 +31,33 @@ class Settings(BaseSettings):
 
     sql_server_host: str = "localhost"
     sql_server_port: int = 1433
-    # the loader scripts' login; the test harness uses it read-only until the app's read-only login exists (DB-06)
-    sql_admin_user: str
-    sql_admin_password: SecretStr
+    sql_odbc_driver: str = "SQL Server"  # the legacy driver; see DATABASE_ISSUES.md DB-05
+    # the app's read-only login: SELECT only on the client tables the repositories read (DB-06)
+    sql_app_user: str
+    sql_app_password: SecretStr
+    # the admin login, used only by the loader scripts and scripts/create_sql_logins.py, never by the app
+    sql_admin_user: str | None = None
+    sql_admin_password: SecretStr | None = None
+
+    # requests that change state must come from this origin (API 2)
+    allowed_origin: str = "http://localhost:8000"
+
+    # connection pools and time limits for both databases (DB-50, IC-03)
+    db_query_timeout_seconds: int = Field(default=5, ge=1)
+    db_pool_size: int = Field(default=5, ge=1)
+    db_max_overflow: int = Field(default=10, ge=0)
 
     @property
     def test_database(self) -> str:
-        return self.postgres_test_db or f"{self.postgres_db}_test"
+        """The database the tests drop and rebuild. Raises ValueError unless the name is lowercase, ends in
+        _test and differs from POSTGRES_DB, so a real database can never be dropped by mistake."""
+        name = self.postgres_test_db or f"{self.postgres_db}_test"
+        if not _TEST_DATABASE_NAME.fullmatch(name) or name == self.postgres_db:
+            raise ValueError(
+                "POSTGRES_TEST_DB must use lowercase letters, digits and underscores, end in _test, "
+                "and differ from POSTGRES_DB"
+            )
+        return name
 
 
 @lru_cache

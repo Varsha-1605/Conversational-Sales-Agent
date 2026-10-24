@@ -1,19 +1,7 @@
 import json
 import logging
 
-import pytest
-
 from backend.logging_setup import configure_logging, mask_email, mask_name, trace_id_var
-
-
-@pytest.fixture
-def restore_root_logger():
-    # configure_logging replaces the root handlers; put pytest's back afterwards
-    root = logging.getLogger()
-    handlers, level = root.handlers[:], root.level
-    yield
-    root.handlers[:] = handlers
-    root.setLevel(level)
 
 
 def last_json_line(capsys):
@@ -33,8 +21,8 @@ def test_mask_email():
     assert mask_email(None) == "***"
 
 
-def test_log_line_is_json_with_trace_id_and_no_personal_data(restore_root_logger, capsys):
-    configure_logging()  # inside the test, so the handler writes to capsys's stdout
+def test_log_line_is_json_with_trace_id_and_no_personal_data(restore_logging, capsys):
+    configure_logging()
     token = trace_id_var.set("trace-123")
     try:
         logging.getLogger("orders").info(
@@ -53,8 +41,22 @@ def test_log_line_is_json_with_trace_id_and_no_personal_data(restore_root_logger
     assert "varsha@" not in line
 
 
-def test_trace_id_is_null_outside_a_request(restore_root_logger, capsys):
+def test_trace_id_is_null_outside_a_request(restore_logging, capsys):
     configure_logging()
     logging.getLogger("startup").info("ready")
     entry = json.loads(last_json_line(capsys))
     assert entry["trace_id"] is None
+
+
+def test_server_lines_are_json_too(restore_logging, capsys):
+    # uvicorn gives its loggers plain-text handlers and turns propagation off at start-up
+    access = logging.getLogger("uvicorn.access")
+    access.handlers[:] = [logging.StreamHandler()]
+    access.propagate = False
+    configure_logging()
+
+    access.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:5000", "GET", "/api/x", "1.1", 404)
+
+    entry = json.loads(last_json_line(capsys))
+    assert entry["logger"] == "uvicorn.access"
+    assert entry["message"] == '127.0.0.1:5000 - "GET /api/x HTTP/1.1" 404'

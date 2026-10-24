@@ -4,15 +4,13 @@ from decimal import Decimal
 import argparse
 import sys
 import pandas as pd
-from sqlalchemy import Integer, Boolean, Date, Numeric, inspect, select, func
+from sqlalchemy import Integer, Boolean, Date, Numeric, inspect, select, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-# __file__ is 'scripts/seed_developer_data.py'
-script_dir = Path(__file__).resolve().parent # points to scripts
-project_root = script_dir.parents[0] # climbs up 1 level to project root
-sys.path.insert(0, str(project_root)) # so that 'backend' can be imported
+project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(project_root))
 
-from backend.db.postgres import postgres_engine
+from backend.db.connect_postgres import postgres_engine
 from backend.db.schema import (
     customers, purchase_history, journeys, test_payment_methods, AGE_BANDS, LOYALTY_TIERS, CHANNELS,
 )
@@ -121,7 +119,9 @@ if args.dry_run:
 print("Connecting to PostgreSQL...")
 engine = postgres_engine()
 
-missing = [table.name for table in tables + [journeys] if not inspect(engine).has_table(table.name)]
+inspector = inspect(engine)
+missing = [table.name for table in tables + [journeys] if not inspector.has_table(table.name)]
+missing += [] if inspector.has_sequence("customer_id_seq") else ["customer_id_seq"]
 if missing:
     raise SystemExit(f"Tables not found: {', '.join(missing)}. Run 'alembic upgrade head' first.")
 
@@ -140,5 +140,16 @@ with engine.begin() as connection:
                        .on_conflict_do_nothing())
     after = connection.execute(select(func.count()).select_from(journeys)).scalar_one()
     print(f"Created journeys: {after - before} new rows ({after} in total)")
+
+    # new sign-ups continue after the highest seeded customer number, even if the seed file grows (DB-36);
+    # the sequence only ever moves forward
+    highest = connection.execute(text(
+        "SELECT max(substring(customer_id FROM 6)::int) FROM customers WHERE customer_id ~ '^CUST-[0-9]+$'"
+    )).scalar()
+    if highest is not None:
+        connection.execute(text(
+            "SELECT setval('customer_id_seq', :highest) WHERE :highest >= "
+            "(SELECT CASE WHEN is_called THEN last_value ELSE last_value - 1 END FROM customer_id_seq)"
+        ), {"highest": highest})
 
 print("Seeding complete!")

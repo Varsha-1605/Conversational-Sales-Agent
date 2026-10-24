@@ -22,6 +22,8 @@ FORMATS = {
 
 
 def next_id(connection, kind):
+    """The next ID of a kind, for example next_id(connection, "order") -> "ORD-000001". The number is taken from
+    the database sequence even if the caller's transaction later rolls back. Raises KeyError for an unknown kind."""
     prefix, digits = FORMATS[kind]
     number = connection.execute(select(ID_SEQUENCES[kind].next_value())).scalar_one()
     return f"{prefix}-{number:0{digits}d}"

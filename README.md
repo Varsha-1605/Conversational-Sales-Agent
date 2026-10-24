@@ -33,23 +33,37 @@ Planning documents are in `.claude/.plan/` (`IMPLEMENTATION_PLAN.md`, `PROJECT_S
    uv run python scripts/ingest_input_data.py --reset
    ```
 
-5. **Create the PostgreSQL tables.**
+5. **Create the app's read-only SQL Server login** (a database account named by `SQL_APP_USER`, with `SELECT` on the seven client tables only). Run it again after any `--reset` load, which drops the tables and their grants.
+
+   ```
+   uv run python scripts/create_sql_logins.py
+   ```
+
+6. **Create the PostgreSQL tables.**
 
    ```
    uv run alembic upgrade head
    ```
 
-6. **Load the developer data** (customers and purchase history).
+7. **Load the developer data** (customers, purchase history, test payment methods; one journey per customer).
 
    ```
    uv run python scripts/seed_developer_data.py
    ```
 
-7. **Before a demo, re-date the stock** so it is not stale. One record (`SKU-4001-L-IVO` at `LOC-S03`) stays stale on purpose.
+8. **Before a demo, re-date the stock** so it is not stale. One record (`SKU-4001-L-IVO` at `LOC-S03`) stays stale on purpose.
 
    ```
    uv run python scripts/redate_inventory.py
    ```
+
+## Run the service
+
+```
+uv run uvicorn backend.main:create_app --factory --reload
+```
+
+The API is under `/api` (interactive docs at `/api/docs`); pages are served from `frontend/` once it exists.
 
 ## Tests
 

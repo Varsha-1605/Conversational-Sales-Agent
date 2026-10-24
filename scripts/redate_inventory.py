@@ -1,16 +1,14 @@
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import argparse
-import urllib.parse
-import os
-from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
+import sys
+from sqlalchemy import text
 
-# __file__ is 'scripts/redate_inventory.py'
-script_dir = Path(__file__).resolve().parent # points to scripts
-project_root = script_dir.parents[0] # climbs up 1 level to project root
+project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(project_root))
 
-load_dotenv(project_root / ".env")
+from backend.db.connect_sqlserver import sqlserver_engine # settings come from config.py (.env)
+from backend.domain.clock import IST
 
 # The one record that stays stale on purpose, so the "Availability not confirmed" case can be shown (DATA_SPEC 2.8)
 STALE_SKU = "SKU-4001-L-IVO"
@@ -22,8 +20,7 @@ parser.add_argument("--dry-run", action="store_true",
                     help="print the dates that would be set; do not connect to the database")
 args = parser.parse_args()
 
-ist = timezone(timedelta(hours=5, minutes=30))
-now = datetime.now(ist).replace(microsecond=0)
+now = datetime.now(IST).replace(microsecond=0)
 fresh = now.isoformat() # every record except the stale one
 stale = (now - timedelta(days=STALE_AGE_DAYS)).isoformat()
 
@@ -34,29 +31,9 @@ if args.dry_run:
     print("Dry run complete. Nothing was changed.")
     raise SystemExit(0)
 
-db_host = os.getenv("SQL_SERVER_HOST", "localhost")
-db_port = os.getenv("SQL_SERVER_PORT", "1433")
-db_user = os.getenv("SQL_ADMIN_USER")
-db_password = os.getenv("SQL_ADMIN_PASSWORD")
-
-# 1. Connect to Docker MSSQL Server
+# 1. Connect to Docker MSSQL Server with the admin login (the app itself only ever has the read-only login)
 print("Connecting to MSSQL Database...")
-connection_string = (
-        f"DRIVER={{SQL Server}};"
-        f"SERVER={db_host},{db_port};"
-        f"DATABASE=master;"
-        f"UID={db_user};"
-        f"PWD={db_password};"
-        f"Encrypt=no;"
-        f"TrustServerCertificate=yes;"
-    )
-
-params = urllib.parse.quote_plus(connection_string)
-
-engine = create_engine(
-    f"mssql+pyodbc:///?odbc_connect={params}",
-    use_setinputsizes=False,
-)
+engine = sqlserver_engine(admin=True)
 
 # 2. Update the dates in one transaction
 with engine.begin() as connection:

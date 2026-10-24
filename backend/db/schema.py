@@ -22,7 +22,8 @@ LOYALTY_TIERS = ("Base", "Silver", "Gold")
 
 
 # DB-36: every generated ID is a prefix plus a number from its own sequence, so IDs stay unique under
-# concurrent writes. The formats are in backend/domain/ids.py. Customers continue after the 12 seeded ones.
+# concurrent writes. The formats are in backend/domain/ids.py. The customer sequence starts after the seeded
+# customers, and the seed moves it further if more are seeded.
 ID_SEQUENCES = {
     kind: Sequence(f"{kind}_id_seq", start=start, metadata=metadata)
     for kind, start in (
