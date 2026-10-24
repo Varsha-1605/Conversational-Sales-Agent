@@ -10,7 +10,7 @@ SECRETS = {"postgres_password": "pg-secret-1", "sql_app_password": "app-secret-2
 @pytest.fixture
 def settings():
     return Settings(_env_file=None, postgres_db="sales", postgres_user="u", sql_app_user="app_reader",
-                    sql_admin_user="sa", **SECRETS)
+                    sql_admin_user="sa", token_signing_key="k" * 32, **SECRETS)
 
 
 @pytest.mark.parametrize("make", [

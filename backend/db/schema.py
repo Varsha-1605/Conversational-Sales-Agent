@@ -19,6 +19,7 @@ metadata = MetaData(naming_convention={
 CHANNELS = ("web", "app", "whatsapp", "kiosk", "voice")
 AGE_BANDS = ("16-17", "18-24", "25-34", "35-40")
 LOYALTY_TIERS = ("Base", "Silver", "Gold")
+REFUND_SOURCES = ("cancellation", "modification", "return", "stock_unavailable")
 
 
 # DB-36: every generated ID is a prefix plus a number from its own sequence, so IDs stay unique under
@@ -187,7 +188,7 @@ refunds = Table("refunds", metadata,
                 Column("refund_status", String(10), nullable=False),
                 Column("retry_of", String(30), ForeignKey("refunds.refund_id"), unique=True),
                 timestamp("created_at", nullable=False),
-                one_of("source_type", ("cancellation", "modification", "return", "stock_unavailable"), "source_type"),
+                one_of("source_type", REFUND_SOURCES, "source_type"),
                 one_of("refund_status", ("initiated", "completed", "failed"), "refund_status"),
                 CheckConstraint("amount > 0", name="amount"),
                 CheckConstraint("order_id IS NOT NULL OR source_type = 'stock_unavailable'", name="order_or_stock_unavailable"),

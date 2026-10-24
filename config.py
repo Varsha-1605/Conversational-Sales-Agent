@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     # requests that change state must come from this origin (API 2)
     allowed_origin: str = "http://localhost:8000"
 
+    # signs action tokens (confirm buttons) and link tokens (agent hand-off links), API 2; HS256 needs 32+ bytes
+    token_signing_key: SecretStr = Field(min_length=32)
+    action_token_minutes: int = Field(default=10, ge=1)
+    link_token_minutes: int = Field(default=15, ge=1)
+
     # connection pools and time limits for both databases (DB-50, IC-03)
     db_query_timeout_seconds: int = Field(default=5, ge=1)
     db_pool_size: int = Field(default=5, ge=1)

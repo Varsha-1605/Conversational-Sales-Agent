@@ -9,11 +9,12 @@ REQUIRED = {
     "POSTGRES_PASSWORD": "pg-secret-1",
     "SQL_APP_USER": "app_reader",
     "SQL_APP_PASSWORD": "sql-secret-2",
+    "TOKEN_SIGNING_KEY": "token-secret-3-" + "x" * 32,
 }
 OPTIONAL = [
     "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_TEST_DB", "SQL_SERVER_HOST", "SQL_SERVER_PORT", "SQL_ODBC_DRIVER",
     "SQL_ADMIN_USER", "SQL_ADMIN_PASSWORD", "ALLOWED_ORIGIN", "DB_QUERY_TIMEOUT_SECONDS", "DB_POOL_SIZE",
-    "DB_MAX_OVERFLOW",
+    "DB_MAX_OVERFLOW", "ACTION_TOKEN_MINUTES", "LINK_TOKEN_MINUTES",
 ]
 
 
@@ -66,7 +67,16 @@ def test_defaults(environment):
     assert settings.sql_odbc_driver == "SQL Server"
     assert settings.allowed_origin == "http://localhost:8000"
     assert (settings.db_query_timeout_seconds, settings.db_pool_size, settings.db_max_overflow) == (5, 5, 10)
+    assert (settings.action_token_minutes, settings.link_token_minutes) == (10, 15)
     assert settings.test_database == "sales_test"
+
+
+def test_a_short_token_key_is_refused_without_its_value(environment):
+    environment.setenv("TOKEN_SIGNING_KEY", "short-secret-4")
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None)
+    assert "token_signing_key" in str(error.value)
+    assert "short-secret-4" not in str(error.value)
 
 
 def test_test_database_can_be_named(environment):
@@ -96,3 +106,4 @@ def test_passwords_are_not_printed(environment):
         assert "pg-secret-1" not in text
         assert "sql-secret-2" not in text
         assert "sql-admin-secret-3" not in text
+        assert REQUIRED["TOKEN_SIGNING_KEY"] not in text

@@ -12,11 +12,11 @@ import subprocess
 import sys
 
 import pytest
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, delete, func, select, text
 from sqlalchemy.pool import NullPool
 
 from backend.db.connect_postgres import postgres_engine, postgres_url
-from backend.db.schema import metadata
+from backend.db.schema import agent_runs, metadata, orders, payment_attempts, refunds, reservations, stock_holds
 from backend.db.connect_sqlserver import sqlserver_engine
 from backend.logging_setup import SERVER_LOGGERS
 from config import PROJECT_ROOT, get_settings
@@ -98,6 +98,25 @@ def test_database(settings, test_database_name, real_counts_before):
     engine = postgres_engine(test_database_name, settings=settings)
     yield engine
     engine.dispose()
+
+
+@pytest.fixture
+def committing_database(test_database):
+    """The test database, for tests whose units of work commit. Afterwards the runtime tables, which the seed leaves
+    empty, are emptied again, so later tests still see only the seed. Children are deleted before their parents."""
+    yield test_database
+    with test_database.begin() as connection:
+        for table in (refunds, payment_attempts, stock_holds, reservations, agent_runs, orders):
+            connection.execute(delete(table))
+
+
+@pytest.fixture
+def rolled_back_connection(test_database):
+    """A connection whose single transaction is rolled back after the test, so nothing it writes is kept."""
+    with test_database.connect() as connection:
+        transaction = connection.begin()
+        yield connection
+        transaction.rollback()
 
 
 @pytest.fixture(scope="session")
