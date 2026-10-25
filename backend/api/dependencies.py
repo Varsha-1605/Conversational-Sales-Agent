@@ -24,6 +24,17 @@ def channel(x_channel: Annotated[str | None, Header()] = None) -> str:
     return x_channel
 
 
+def channel_or_web(x_channel: Annotated[str | None, Header()] = None) -> str:
+    """The channel a sign-in or sign-up comes from. They do not change a journey, so the header may be left out:
+    the channel is then web. A kiosk sends kiosk."""
+    return channel(x_channel) if x_channel is not None else "web"
+
+
+def channel_if_sent(x_channel: Annotated[str | None, Header()] = None) -> str | None:
+    """The channel the request says it comes from, or None when the header is missing or not a known channel."""
+    return x_channel if x_channel in CHANNELS else None
+
+
 @dataclass(frozen=True)
 class PageRequest:
     page: int

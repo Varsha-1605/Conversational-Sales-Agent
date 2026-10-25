@@ -1,4 +1,5 @@
 from enum import StrEnum
+import logging
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -6,7 +7,10 @@ from fastapi.responses import JSONResponse
 # FastAPI's HTTPException extends Starlette's; handling Starlette's also covers the framework's own errors
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from backend.db.connect_sqlserver import ClientDatabaseUnavailable
 from backend.logging_setup import trace_id_var
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorCode(StrEnum):
@@ -96,6 +100,11 @@ class ApiError(HTTPException):
         self.details = details if details is not None else {}
 
 
+def field_error(field: str, problem: str, fix: str) -> ApiError:
+    """A VALIDATION_ERROR about one field, for a rule only the server can check (a taken email, an unknown store)."""
+    return ApiError(ErrorCode.VALIDATION_ERROR, details=[{"field": field, "problem": problem, "fix": fix}])
+
+
 def error_response(code: ErrorCode, message=None, details=None, headers=None) -> JSONResponse:
     """The one error shape (API 5): {"error": {code, message, details, trace_id}}."""
     body = {"error": {
@@ -131,6 +140,11 @@ async def _api_error(_request: Request, error: ApiError):
     return error_response(error.code, error.message, error.details, error.headers)
 
 
+async def _client_database_unavailable(_request: Request, _error: ClientDatabaseUnavailable):
+    logger.warning("the client database is unreachable")
+    return error_response(ErrorCode.SERVICE_UNAVAILABLE)
+
+
 async def _validation_error(_request: Request, error: RequestValidationError):
     return error_response(ErrorCode.VALIDATION_ERROR, details=[_problem(e) for e in error.errors()])
 
@@ -158,5 +172,6 @@ async def _http_error(_request: Request, error: StarletteHTTPException):
 def register_error_handlers(app: FastAPI):
     # unexpected exceptions are answered by the trace-ID middleware, which still knows the trace ID
     app.add_exception_handler(ApiError, _api_error)
+    app.add_exception_handler(ClientDatabaseUnavailable, _client_database_unavailable)
     app.add_exception_handler(RequestValidationError, _validation_error)
     app.add_exception_handler(StarletteHTTPException, _http_error)

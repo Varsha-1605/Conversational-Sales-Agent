@@ -6,13 +6,14 @@ import sys
 import pandas as pd
 from sqlalchemy import (
     MetaData, Table, Column, String, Integer, Numeric, Boolean,
-    ForeignKey, PrimaryKeyConstraint, CheckConstraint, Index, insert, delete,
+    ForeignKey, PrimaryKeyConstraint, CheckConstraint, Index, insert, delete, inspect, text,
 )
 from sqlalchemy.dialects.mssql import TIME, DATETIMEOFFSET
 
 project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
+from backend.auth.passwords import hash_password
 from backend.db.connect_sqlserver import sqlserver_engine # settings come from config.py (.env)
 
 data_dir = project_root / "data" / "raw"
@@ -83,17 +84,21 @@ Table("inventory_levels", metadata,
       PrimaryKeyConstraint("sku", "location_id"),
       CheckConstraint("on_hand_qty >= 0"))
 
-# the password column is still plain text; it becomes password_hash when sign-in is built
+# only an argon2id hash of the password is stored (DATA_SPEC 2.9, DB-07); the file keeps the demo password
 Table("staff_data", metadata,
       Column("staff_id", String(20), primary_key=True),
       Column("name", String(100), nullable=False),
       Column("email", String(200), nullable=False, unique=True),
-      Column("password", String(100), nullable=False),
+      Column("password_hash", String(255), nullable=False),
       Column("role", String(30), nullable=False),
       Column("location_id", String(20), ForeignKey("dbo.locations.location_id")))
 
 
 # 2. Read each CSV as text, then convert every value to its column type
+# a column of the file that is stored only as a hash: table -> (column in the file, column in the table)
+HASHED_FROM_FILE = {"staff_data": ("password", "password_hash")}
+
+
 def convert(column, value):
     if value in ("", "null"):
         return None
@@ -115,14 +120,19 @@ def convert(column, value):
 def read_rows(table):
     csv_path = data_dir / f"{table.name}.csv"
     df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
-    if set(df.columns) != set(table.columns.keys()):
-        raise ValueError(f"{csv_path.name}: columns {list(df.columns)} do not match {list(table.columns.keys())}")
+    plain_name, hash_name = HASHED_FROM_FILE.get(table.name, (None, None))
+    expected = {plain_name if name == hash_name else name for name in table.columns.keys()}
+    if set(df.columns) != expected:
+        raise ValueError(f"{csv_path.name}: columns {list(df.columns)} do not match {sorted(expected)}")
     rows = []
     for line, record in enumerate(df.to_dict("records"), start=2): # line 1 is the header
         row = {}
         for column in table.columns:
             try:
-                row[column.name] = convert(column, record[column.name])
+                if column.name == hash_name:
+                    row[column.name] = hash_password(record[plain_name])
+                else:
+                    row[column.name] = convert(column, record[column.name])
             except (ValueError, ArithmeticError) as error:
                 raise ValueError(f"{csv_path.name} line {line}, column {column.name}: {error}") from error
             if row[column.name] is None and not column.nullable:
@@ -172,6 +182,25 @@ engine = sqlserver_engine(admin=True)
 if args.reset:
     print("Dropping the tables...")
     metadata.drop_all(engine)
+
+
+def replace_plain_staff_passwords():
+    """A staff_data table made before passwords were hashed has a plain `password` column. Add `password_hash` and
+    drop `password` in place, so the table keeps its read-only grants. The rows are replaced just below, with
+    hashes; the demo passwords stay only in the CSV file. Returns True if the table was changed."""
+    inspector = inspect(engine)
+    if not inspector.has_table("staff_data", schema="dbo"):
+        return False
+    if "password" not in {column["name"] for column in inspector.get_columns("staff_data", schema="dbo")}:
+        return False
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE dbo.staff_data ADD password_hash VARCHAR(255) NULL"))
+        connection.execute(text("ALTER TABLE dbo.staff_data DROP COLUMN password"))
+    print("staff_data: the plain password column was replaced by password_hash")
+    return True
+
+
+staff_table_changed = replace_plain_staff_passwords()
 metadata.create_all(engine)
 
 with engine.begin() as connection:
@@ -180,5 +209,7 @@ with engine.begin() as connection:
     for table in metadata.sorted_tables: # parents before children
         print(f"Loading {table.name}...")
         connection.execute(insert(table), all_rows[table.name])
+    if staff_table_changed: # every row has its hash now, so the column can be required, as in a new table
+        connection.execute(text("ALTER TABLE dbo.staff_data ALTER COLUMN password_hash VARCHAR(255) NOT NULL"))
 
 print("Data ingestion complete!")

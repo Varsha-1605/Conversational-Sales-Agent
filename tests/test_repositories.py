@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from backend.auth.passwords import verify_password
 from backend.db.repositories import catalogue, inventory, locations, staff
 from backend.domain.clock import IST
 from config import PROJECT_ROOT
@@ -93,9 +94,21 @@ def test_staff_lookups_never_include_the_password(connection):
     member = staff.staff_by_email(connection, row["email"].upper())  # emails compare without case
     assert member.staff_id == row["staff_id"]
     assert not hasattr(member, "password")
+    assert not hasattr(member, "password_hash")
     assert row["password"] not in repr(member)
     assert staff.staff_member(connection, row["staff_id"]) == member
     assert staff.staff_member(connection, "STF-NONE") is None
+
+
+def test_staff_login_gives_the_hash_that_the_demo_password_matches(connection):
+    row = client_rows("staff_data")[0]
+    login = staff.staff_login(connection, row["email"].upper())
+    assert login.member == staff.staff_by_email(connection, row["email"])
+    assert login.password_hash.startswith("$argon2id$")
+    assert verify_password(row["password"], login.password_hash)
+    assert not verify_password("not-the-password", login.password_hash)
+    assert login.password_hash not in repr(login) and row["password"] not in repr(login)
+    assert staff.staff_login(connection, "nobody@example.com") is None
 
 
 @pytest.mark.parametrize("repository", [catalogue, inventory, locations, staff])

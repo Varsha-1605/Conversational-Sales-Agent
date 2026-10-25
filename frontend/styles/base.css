@@ -1,0 +1,126 @@
+/* Base look shared by every page: reset, text, buttons and forms (DESIGN.md sections 3, 6.1, 8). */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--size-body);
+  line-height: 1.5;
+}
+
+h1 { font-size: var(--size-h1); line-height: 1.25; font-weight: 600; margin: 0 0 var(--space-16); }
+h2 { font-size: var(--size-h2); line-height: 1.3; font-weight: 600; margin: 0 0 var(--space-12); }
+p { margin: 0 0 var(--space-16); }
+
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* a centred card for single-purpose pages such as sign in */
+.page-centre {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-32) var(--page-margin);
+}
+
+.card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--card-padding);
+}
+
+body.kiosk .card { max-width: 640px; }
+
+/* buttons (6.1): the label says what happens, and the button locks while it works */
+.button {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-24);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent);
+  font: 500 var(--size-label) / 1.4 var(--font);
+  cursor: pointer;
+}
+.button-primary { background: var(--accent); color: #fff; }
+.button-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.button-secondary { background: var(--surface); color: var(--accent); }
+.button:disabled { opacity: 0.7; cursor: progress; }
+.button-wide { width: 100%; }
+
+/* forms (8): one column, label above, error under the field, nothing cleared */
+.field { margin: 0 0 var(--space-16); padding: 0; border: 0; min-width: 0; }
+.field label, .field legend {
+  display: block; padding: 0; margin-bottom: var(--space-8);
+  font-size: var(--size-label); font-weight: 500; line-height: 1.4;
+}
+.field-hint { margin: var(--space-4) 0 0; font-size: var(--size-meta); color: var(--text-muted); }
+
+.field input[type="text"], .field input[type="email"], .field input[type="password"] {
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: var(--space-8) var(--space-12);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+.field input[aria-invalid="true"] { border-color: var(--danger); }
+
+.choice { display: flex; align-items: center; gap: var(--space-12); min-height: var(--touch-target); }
+.choice input { width: 20px; height: 20px; accent-color: var(--accent); margin: 0; }
+.choice label { margin: 0; font-weight: 400; font-size: var(--size-body); }
+
+.field-error {
+  display: flex; gap: var(--space-8); align-items: flex-start;
+  margin: var(--space-8) 0 0;
+  color: var(--danger);
+  font-size: var(--size-meta);
+}
+.field-error[hidden] { display: none; }
+.field-error::before { content: "\26A0"; /* a warning sign: colour is never the only signal */ }
+
+.error-summary {
+  margin: 0 0 var(--space-16);
+  padding: var(--space-12) var(--space-16);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+}
+.error-summary[hidden] { display: none; }
+.error-summary p { margin: 0 0 var(--space-8); font-weight: 600; }
+.error-summary ul { margin: 0; padding-left: var(--space-24); }
+.error-summary a { color: inherit; }
+
+/* a short good-news message, with its own icon: colour is never the only signal */
+.notice {
+  display: flex; gap: var(--space-8); align-items: flex-start;
+  margin: 0 0 var(--space-16);
+  padding: var(--space-12) var(--space-16);
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+}
+.notice[hidden] { display: none; }
+.notice::before { content: "\2713"; font-weight: 600; }
+
+.below-form { margin: var(--space-24) 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

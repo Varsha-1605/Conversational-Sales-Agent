@@ -72,7 +72,8 @@ def numbers(page: Annotated[PageRequest, Depends(pagination)]) -> Page[int]:
 
 def make_client(frontend_dir):
     settings = Settings(_env_file=None, postgres_db="sales", postgres_user="u", postgres_password="p",
-                        sql_app_user="app_reader", sql_app_password="p", token_signing_key="k" * 32,
+                        postgres_app_user="app_runtime", postgres_app_password="p", sql_app_user="app_reader",
+                        sql_app_password="p", token_signing_key="k" * 32, session_cookie_key="c" * 32,
                         allowed_origin=ORIGIN)
     # no `with`: the app's startup (database engines) is not needed for these tests
     return TestClient(create_app(settings, routers=[router], frontend_dir=frontend_dir))

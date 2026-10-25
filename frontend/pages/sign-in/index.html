@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in</title>
+  <link rel="stylesheet" href="/styles/tokens.css">
+  <link rel="stylesheet" href="/styles/base.css">
+</head>
+<body>
+  <main class="page-centre">
+    <section class="card" aria-labelledby="page-title">
+      <h1 id="page-title">Sign in</h1>
+
+      <p class="notice" id="account-created" role="status" hidden>Your account is ready. Sign in to continue.</p>
+
+      <div class="error-summary" role="alert" tabindex="-1" hidden>
+        <p>Please fix the following:</p>
+        <ul></ul>
+      </div>
+
+      <form id="sign-in-form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" aria-describedby="email-error" required>
+          <p class="field-error" id="email-error" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" aria-describedby="password-error" required>
+          <p class="field-error" id="password-error" hidden></p>
+        </div>
+
+        <fieldset class="field" aria-describedby="role-error">
+          <legend>Sign in as</legend>
+          <div class="choice"><input type="radio" id="role-customer" name="role" value="customer" checked><label for="role-customer">Customer</label></div>
+          <div class="choice"><input type="radio" id="role-store-associate" name="role" value="store_associate"><label for="role-store-associate">Store associate</label></div>
+          <div class="choice"><input type="radio" id="role-administrator" name="role" value="administrator"><label for="role-administrator">Administrator</label></div>
+          <p class="field-error" id="role-error" hidden></p>
+        </fieldset>
+
+        <button class="button button-primary button-wide" type="submit">Sign in</button>
+      </form>
+
+      <p class="below-form">New here? <a id="sign-up-link" href="/pages/sign-up/">Create an account</a></p>
+    </section>
+  </main>
+  <script type="module" src="/pages/sign-in/sign-in.js"></script>
+</body>
+</html>

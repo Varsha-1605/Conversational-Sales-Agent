@@ -1,0 +1,80 @@
+/* Design tokens, copied from DESIGN.md sections 2 to 4. Light theme only. */
+:root {
+  /* colour (2.1) */
+  --text: #1C1B19;
+  --text-muted: #5C5852;
+  --surface: #FFFFFF;
+  --surface-page: #F7F5F2;
+  --surface-muted: #EFECE7;
+  --border: #E4E0D9;
+  --border-input: #8A857D;
+  --accent: #0F5F5C;
+  --accent-hover: #0B4A47;
+  --accent-soft: #E6F0EF;
+  --success: #1E6B3A;
+  --success-bg: #E8F3EC;
+  --warning: #8A4B00;
+  --warning-bg: #FDF1E1;
+  --danger: #B3261E;
+  --danger-bg: #FBEAE9;
+  --info: #1F4E8C;
+  --info-bg: #E9EFF8;
+  --simulated: #4B3A80;
+  --simulated-bg: #EEEAF6;
+
+  /* type (3): Noto Sans when the device has it, else the system font */
+  --font: "Noto Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --size-display: 32px;
+  --size-h1: 28px;
+  --size-h2: 24px;
+  --size-h3: 20px;
+  --size-body-lg: 18px;
+  --size-body: 16px;
+  --size-label: 14px;
+  --size-meta: 14px;
+
+  /* spacing (4.1): only these steps */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --page-margin: var(--space-16);
+  --card-padding: var(--space-16);
+  --touch-target: 44px;
+
+  /* shape and depth (4.4) */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-float: 0 2px 8px rgba(28, 27, 25, 0.12);
+  --shadow-dialog: 0 8px 24px rgba(28, 27, 25, 0.16);
+
+  /* motion (10) */
+  --motion-fast: 120ms;
+}
+
+@media (min-width: 600px) {
+  :root { --page-margin: var(--space-24); }
+}
+
+@media (min-width: 1024px) {
+  :root { --page-margin: var(--space-32); }
+}
+
+/* the kiosk reads from arm's length: type is 1.25 times larger (3.2) and cards have more room */
+body.kiosk {
+  --size-display: 40px;
+  --size-h1: 35px;
+  --size-h2: 30px;
+  --size-h3: 25px;
+  --size-body-lg: 22px;
+  --size-body: 20px;
+  --size-label: 18px;
+  --size-meta: 16px;
+  --card-padding: var(--space-24);
+  --touch-target: 56px;
+}

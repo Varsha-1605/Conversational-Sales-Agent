@@ -4,12 +4,13 @@ from decimal import Decimal
 import argparse
 import sys
 import pandas as pd
-from sqlalchemy import Integer, Boolean, Date, Numeric, inspect, select, func, text
+from sqlalchemy import Integer, Boolean, Date, Numeric, bindparam, inspect, select, func, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
+from backend.auth.passwords import hash_password
 from backend.db.connect_postgres import postgres_engine
 from backend.db.schema import (
     customers, purchase_history, journeys, test_payment_methods, AGE_BANDS, LOYALTY_TIERS, CHANNELS,
@@ -34,7 +35,7 @@ ENUMS = {"age_band": AGE_BANDS, "loyalty_tier": LOYALTY_TIERS, "device_preferenc
 
 # columns that are not in the file (they get their defaults) and columns in the file that are not loaded
 NOT_IN_FILE = {"customers": {"password_hash", "save_preferences_allowed", "saved_preferences"}}
-NOT_LOADED = {"customers": {"password"}} # plain-text demo password: hashing is a separate piece of work
+NOT_LOADED = {"customers": {"password"}} # the plain demo password is never stored; read_rows loads its hash instead
 
 
 # 2. Read each CSV as text, then convert every value to its column type
@@ -73,6 +74,8 @@ def read_rows(table):
                 raise ValueError(f"{csv_path.name} line {line}, column {column.name}: {error}") from error
             if row[column.name] is None and not column.nullable and column.server_default is None:
                 raise ValueError(f"{csv_path.name} line {line}, column {column.name}: value is required")
+        if table.name == "customers":
+            row["password_hash"] = hash_password(record["password"])  # argon2id (DATA_SPEC 2.1, DB-24)
         rows.append(row)
     return rows
 
@@ -133,6 +136,14 @@ with engine.begin() as connection:
         connection.execute(pg_insert(table).on_conflict_do_nothing(), all_rows[table.name])
         after = connection.execute(select(func.count()).select_from(table)).scalar_one()
         print(f"Loaded {table.name}: {after - before} new rows ({after} in total)")
+
+    # a customer seeded before passwords were hashed has no hash yet; give them one, and never replace an existing hash
+    filled = connection.execute(
+        update(customers).where(customers.c.customer_id == bindparam("seeded_id"), customers.c.password_hash.is_(None))
+        .values(password_hash=bindparam("seeded_hash")),
+        [{"seeded_id": row["customer_id"], "seeded_hash": row["password_hash"]} for row in all_rows["customers"]],
+    ).rowcount
+    print(f"Password hashes added for existing customers: {filled}")
 
     # one empty journey per customer (DATA_SPEC 4.1, DB-35); sign-up creates the row for new customers
     before = connection.execute(select(func.count()).select_from(journeys)).scalar_one()

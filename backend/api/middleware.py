@@ -10,6 +10,17 @@ logger = logging.getLogger(__name__)
 
 STATE_CHANGING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
+# Browser protections on every response: no framing of any page (clickjacking), no guessing of content types, no
+# referrer sent. Our pages load only their own files, so they may load nothing else (API 2).
+SECURITY_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+CONTENT_SECURITY_POLICY = "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+# the interactive API documentation loads its viewer from a CDN and runs inline code, so it is left out of the policy
+DOCUMENTATION_PATHS = frozenset({"/api/docs", "/docs/oauth2-redirect"})
+
 
 def register_middleware(app: FastAPI, allowed_origin: str):
     """The request pipeline every route shares. FastAPI runs the middleware registered last first."""
@@ -40,3 +51,14 @@ def register_middleware(app: FastAPI, allowed_origin: str):
             return response
         finally:
             trace_id_var.reset(token)
+
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        # registered last, so it is outermost and covers every answer, errors and refusals included
+        response = await call_next(request)
+        response.headers.update(SECURITY_HEADERS)
+        if request.url.path not in DOCUMENTATION_PATHS:
+            response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"  # an answer about a person is never kept by a browser/proxy
+        return response

@@ -1,8 +1,11 @@
+from contextlib import contextmanager
 from datetime import datetime, time
 import re
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import URL
+from sqlalchemy.exc import InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
 from backend.db.health import check
 from backend.domain.clock import to_ist
@@ -57,6 +60,23 @@ def sqlserver_engine(*, admin=False, settings=None):
         dbapi_connection.timeout = timeout  # pyodbc cancels a statement that runs longer
 
     return engine
+
+
+class ClientDatabaseUnavailable(Exception):
+    """The client's SQL Server could not be reached. Answered as SERVICE_UNAVAILABLE, not as a server error."""
+
+
+@contextmanager
+def client_connection(engine):
+    """A connection to the client's SQL Server. Only the failure to connect becomes ClientDatabaseUnavailable; an
+    error inside the block is raised as it is. Open it only when a request needs client data, so a request that does
+    not (a customer signing in) keeps working while the client's database is down."""
+    try:
+        connection = engine.connect()
+    except (OperationalError, InterfaceError, PoolTimeoutError) as error:
+        raise ClientDatabaseUnavailable from error
+    with connection:
+        yield connection
 
 
 def health(engine):

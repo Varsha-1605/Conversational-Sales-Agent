@@ -17,6 +17,7 @@ metadata = MetaData(naming_convention={
 })
 
 CHANNELS = ("web", "app", "whatsapp", "kiosk", "voice")
+ROLES = ("customer", "store_associate", "administrator")  # who a session belongs to (API 2)
 AGE_BANDS = ("16-17", "18-24", "25-34", "35-40")
 LOYALTY_TIERS = ("Base", "Silver", "Gold")
 REFUND_SOURCES = ("cancellation", "modification", "return", "stock_unavailable")
@@ -249,3 +250,20 @@ agent_runs = Table("agent_runs", metadata,
                    one_of("channel", CHANNELS, "channel"),
                    one_of("status", ("ok", "partial", "error"), "status"),
                    Index("ix_agent_runs_trace_id", "trace_id"))
+
+# sessions: one row per sign-in. The cookie names the row; the row says who the session belongs to and when it was
+# last used, so idle expiry slides, sign-out ends it at once, and the expiry job can find idle sessions
+# (ARCHITECTURE 5.1, 5.7, DB-42). subject_id is a customer_id or a staff_id (SQL Server), so it has no foreign key.
+sessions = Table("sessions", metadata,
+                 Column("session_id", String(40), primary_key=True),
+                 Column("subject_id", String(30), nullable=False),
+                 Column("role", String(20), nullable=False),
+                 Column("store_id", String(20)), # SQL Server locations; set for associates and kiosk sessions
+                 Column("channel", String(10), nullable=False), # the channel it was signed in from; kiosk has the short idle limit
+                 timestamp("created_at", nullable=False),
+                 timestamp("last_activity_at", nullable=False),
+                 timestamp("ended_at"), # set by sign-out
+                 one_of("role", ROLES, "role"),
+                 one_of("channel", CHANNELS, "channel"),
+                 # the expiry job looks for open sessions by how long they have been idle
+                 Index("ix_sessions_last_activity_at", "last_activity_at", postgresql_where=text("ended_at IS NULL")))

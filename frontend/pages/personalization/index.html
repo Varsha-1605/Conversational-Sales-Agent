@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Personalization</title>
+  <link rel="stylesheet" href="/styles/tokens.css">
+  <link rel="stylesheet" href="/styles/base.css">
+</head>
+<body>
+  <main class="page-centre">
+    <section class="card" aria-labelledby="page-title">
+      <h1 id="page-title">Personalization</h1>
+      <p>Tell us a little about you and choose how we may use your details. You can change this any time.</p>
+
+      <p class="notice" id="saved-notice" role="status" tabindex="-1" hidden>Your choices are saved.</p>
+
+      <div class="error-summary" role="alert" tabindex="-1" hidden>
+        <p>Please fix the following:</p>
+        <ul></ul>
+      </div>
+
+      <form id="personalization-form" novalidate>
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" autocomplete="name" maxlength="100" aria-describedby="name-hint name-error" required>
+          <p class="field-hint" id="name-hint">What the agent should call you.</p>
+          <p class="field-error" id="name-error" hidden></p>
+        </div>
+
+        <fieldset class="field" aria-describedby="gender-hint gender-error">
+          <legend>Gender (optional)</legend>
+          <div class="choice"><input type="radio" id="gender-woman" name="gender" value="woman"><label for="gender-woman">Woman</label></div>
+          <div class="choice"><input type="radio" id="gender-man" name="gender" value="man"><label for="gender-man">Man</label></div>
+          <div class="choice"><input type="radio" id="gender-other" name="gender" value="other"><label for="gender-other">Other</label></div>
+          <div class="choice"><input type="radio" id="gender-none" name="gender" value="" checked><label for="gender-none">Prefer not to say</label></div>
+          <p class="field-hint" id="gender-hint">Helps us suggest the right products.</p>
+          <p class="field-error" id="gender-error" hidden></p>
+        </fieldset>
+
+        <fieldset class="field" id="preferred_store_id" aria-describedby="store-hint preferred_store_id-error">
+          <legend>Preferred store</legend>
+          <div id="store-choices"></div>
+          <p class="field-hint" id="store-hint">The store you usually visit. Chats with a person go to its team.</p>
+          <p class="field-error" id="preferred_store_id-error" hidden></p>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>How we may use your details</legend>
+          <div class="choice">
+            <input type="checkbox" id="personalization_allowed" name="personalization_allowed">
+            <label for="personalization_allowed">Use my purchase history, activity and details for suggestions</label>
+          </div>
+          <div class="choice">
+            <input type="checkbox" id="save_preferences_allowed" name="save_preferences_allowed">
+            <label for="save_preferences_allowed">Save the preferences I mention in chat to my profile</label>
+          </div>
+          <p class="field-hint">Leaving these unticked is fine. You can still browse, buy, reserve, track, cancel and return.</p>
+        </fieldset>
+
+        <button class="button button-primary button-wide" type="submit">Save</button>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="/pages/personalization/personalization.js"></script>
+</body>
+</html>

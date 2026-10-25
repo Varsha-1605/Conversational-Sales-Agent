@@ -10,7 +10,7 @@ import logging
 import os
 import subprocess
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, delete, func, select, text
@@ -18,7 +18,11 @@ from sqlalchemy.pool import NullPool
 
 from backend.db.connect_postgres import postgres_engine, postgres_url
 from backend.db.repositories import inventory
-from backend.db.schema import agent_runs, metadata, orders, payment_attempts, refunds, reservations, stock_holds
+from backend.db.schema import (
+    agent_runs, customers, journeys, metadata, orders, payment_attempts, refunds, reservations, sessions, stock_holds,
+)
+from backend.domain.clock import IST, FixedClock
+from tests.signed_in_app import running_app
 from backend.db.connect_sqlserver import sqlserver_engine
 from backend.logging_setup import SERVER_LOGGERS
 from config import PROJECT_ROOT, get_settings
@@ -96,6 +100,7 @@ def test_database(settings, test_database_name, real_counts_before):
     # 2. build the schema and load the seed with the project's own tools, pointed at the test database
     run_on_database(["-m", "alembic", "upgrade", "head"], test_database_name)
     run_on_database(["scripts/seed_developer_data.py"], test_database_name)
+    run_on_database(["scripts/create_postgres_app_user.py"], test_database_name)  # the app login's rights
 
     engine = postgres_engine(test_database_name, settings=settings)
     yield engine
@@ -108,7 +113,7 @@ def committing_database(test_database):
     empty, are emptied again, so later tests still see only the seed. Children are deleted before their parents."""
     yield test_database
     with test_database.begin() as connection:
-        for table in (refunds, payment_attempts, stock_holds, reservations, agent_runs, orders):
+        for table in (refunds, payment_attempts, stock_holds, reservations, agent_runs, orders, sessions):
             connection.execute(delete(table))
 
 
@@ -119,6 +124,42 @@ def rolled_back_connection(test_database):
         transaction = connection.begin()
         yield connection
         transaction.rollback()
+
+
+@pytest.fixture(scope="session")
+def test_settings(settings, test_database_name):
+    """The settings with the test database in place of the real one, for an app that must read and write test data."""
+    return settings.model_copy(update={"postgres_db": test_database_name})
+
+
+@pytest.fixture
+def clock():
+    """A clock a test can move on; the app under test takes it, so idle expiry and rate-limit windows can be tested."""
+    return FixedClock(datetime.now(IST))
+
+
+@pytest.fixture
+def origin(test_settings):
+    """The header a browser sends on a state-changing request from our own pages."""
+    return {"Origin": test_settings.allowed_origin}
+
+
+@pytest.fixture
+def client(restore_logging, test_settings, clock, tmp_path):
+    """The app on the test database, to call through HTTP. A test module may define its own `client` instead."""
+    with running_app(test_settings, clock, tmp_path) as client:
+        yield client
+
+
+@pytest.fixture
+def remove_new_customers_afterwards(committing_database):
+    """Sign-up adds a customer and a journey; take them away again so later tests see only the seed."""
+    with committing_database.connect() as connection:
+        seeded = set(connection.execute(select(customers.c.customer_id)).scalars())
+    yield
+    with committing_database.begin() as connection:
+        connection.execute(delete(journeys).where(journeys.c.customer_id.not_in(seeded)))
+        connection.execute(delete(customers).where(customers.c.customer_id.not_in(seeded)))
 
 
 @pytest.fixture(scope="session")

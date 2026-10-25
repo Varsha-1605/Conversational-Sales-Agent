@@ -4,13 +4,15 @@ from backend.db.connect_postgres import postgres_engine
 from backend.db.connect_sqlserver import sqlserver_engine
 from config import Settings
 
-SECRETS = {"postgres_password": "pg-secret-1", "sql_app_password": "app-secret-2", "sql_admin_password": "admin-secret-3"}
+SECRETS = {"postgres_password": "pg-secret-1", "postgres_app_password": "pg-app-secret-4",
+           "sql_app_password": "app-secret-2", "sql_admin_password": "admin-secret-3"}
 
 
 @pytest.fixture
 def settings():
-    return Settings(_env_file=None, postgres_db="sales", postgres_user="u", sql_app_user="app_reader",
-                    sql_admin_user="sa", token_signing_key="k" * 32, **SECRETS)
+    return Settings(_env_file=None, postgres_db="sales", postgres_user="u", postgres_app_user="app_runtime",
+                    sql_app_user="app_reader", sql_admin_user="sa", token_signing_key="k" * 32,
+                    session_cookie_key="c" * 32, **SECRETS)
 
 
 @pytest.mark.parametrize("make", [

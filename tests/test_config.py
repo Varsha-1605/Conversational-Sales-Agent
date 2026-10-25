@@ -7,9 +7,12 @@ REQUIRED = {
     "POSTGRES_DB": "sales",
     "POSTGRES_USER": "user",
     "POSTGRES_PASSWORD": "pg-secret-1",
+    "POSTGRES_APP_USER": "app_runtime",
+    "POSTGRES_APP_PASSWORD": "pg-app-secret-4",
     "SQL_APP_USER": "app_reader",
     "SQL_APP_PASSWORD": "sql-secret-2",
     "TOKEN_SIGNING_KEY": "token-secret-3-" + "x" * 32,
+    "SESSION_COOKIE_KEY": "cookie-secret-5-" + "y" * 32,
 }
 OPTIONAL = [
     "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_TEST_DB", "SQL_SERVER_HOST", "SQL_SERVER_PORT", "SQL_ODBC_DRIVER",
@@ -43,6 +46,14 @@ def test_the_app_needs_its_read_only_login(environment):
     with pytest.raises(ValidationError) as error:
         Settings(_env_file=None)
     assert "sql_app_password" in str(error.value)
+
+
+def test_the_app_needs_its_own_postgres_login(environment):
+    environment.delenv("POSTGRES_APP_PASSWORD")
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None)
+    assert "postgres_app_password" in str(error.value)
+    assert "pg-app-secret-4" not in str(error.value)
 
 
 def test_the_admin_login_is_optional(environment):
@@ -79,6 +90,24 @@ def test_a_short_token_key_is_refused_without_its_value(environment):
     assert "short-secret-4" not in str(error.value)
 
 
+def test_a_short_cookie_key_is_refused_without_its_value(environment):
+    environment.setenv("SESSION_COOKIE_KEY", "short-secret-6")
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None)
+    assert "session_cookie_key" in str(error.value)
+    assert "short-secret-6" not in str(error.value)
+
+
+def test_the_cookie_key_and_the_token_key_must_differ_and_neither_value_is_shown(environment):
+    shared = "shared-secret-7-" + "z" * 32
+    environment.setenv("SESSION_COOKIE_KEY", shared)
+    environment.setenv("TOKEN_SIGNING_KEY", shared)
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None)
+    assert "SESSION_COOKIE_KEY" in str(error.value) and "TOKEN_SIGNING_KEY" in str(error.value)
+    assert shared not in str(error.value)
+
+
 def test_test_database_can_be_named(environment):
     environment.setenv("POSTGRES_TEST_DB", "other_test")
     assert Settings(_env_file=None).test_database == "other_test"
@@ -107,3 +136,5 @@ def test_passwords_are_not_printed(environment):
         assert "sql-secret-2" not in text
         assert "sql-admin-secret-3" not in text
         assert REQUIRED["TOKEN_SIGNING_KEY"] not in text
+        assert REQUIRED["SESSION_COOKIE_KEY"] not in text
+        assert "pg-app-secret-4" not in text

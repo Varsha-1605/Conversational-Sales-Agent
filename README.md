@@ -45,13 +45,19 @@ Planning documents are in `.claude/.plan/` (`IMPLEMENTATION_PLAN.md`, `PROJECT_S
    uv run alembic upgrade head
    ```
 
-7. **Load the developer data** (customers, purchase history, test payment methods; one journey per customer).
+7. **Create the app's PostgreSQL login** (named by `POSTGRES_APP_USER`: it can read and write rows but not change tables). `POSTGRES_USER` stays the owner for migrations, the seed and the tests. Run it after the migrations.
+
+   ```
+   uv run python scripts/create_postgres_app_user.py
+   ```
+
+8. **Load the developer data** (customers, purchase history, test payment methods; one journey per customer). Passwords are stored only as argon2id hashes; the demo passwords stay in the CSV files.
 
    ```
    uv run python scripts/seed_developer_data.py
    ```
 
-8. **Before a demo, re-date the stock** so it is not stale. One record (`SKU-4001-L-IVO` at `LOC-S03`) stays stale on purpose.
+9. **Before a demo, re-date the stock** so it is not stale. One record (`SKU-4001-L-IVO` at `LOC-S03`) stays stale on purpose.
 
    ```
    uv run python scripts/redate_inventory.py
@@ -63,7 +69,7 @@ Planning documents are in `.claude/.plan/` (`IMPLEMENTATION_PLAN.md`, `PROJECT_S
 uv run uvicorn backend.main:create_app --factory --reload
 ```
 
-The API is under `/api` (interactive docs at `/api/docs`); pages are served from `frontend/` once it exists.
+The API is under `/api` (interactive docs at `/api/docs`); pages are served from `frontend/`. Sign in at `http://localhost:8000/pages/sign-in/` with the demo accounts in `data/developers/customers.csv` and `data/raw/staff_data.csv`. The session cookie is `Secure`, which browsers accept on `localhost`.
 
 ## Tests
 
