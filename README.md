@@ -4,6 +4,8 @@ Omnichannel retail sales agent for a fashion retailer. The client's data (catalo
 
 Planning documents are in `.claude/.plan/` (`IMPLEMENTATION_PLAN.md`, `PROJECT_STRUCTURE.md`, `ARCHITECTURE.md`, `DATABASE.md`).
 
+**Built so far (phases 0 to 5):** the setup and test harness, the data foundation, the FastAPI service with its read-only data access, the domain core (transactions, payment balance, tokens, locks), the Inventory and Loyalty and Offers rule workers, and authentication with sessions, roles and Personalization. See the plan for what comes next.
+
 ## Requirements
 
 - Python 3.13 and [uv](https://docs.astral.sh/uv/)
@@ -69,7 +71,21 @@ Planning documents are in `.claude/.plan/` (`IMPLEMENTATION_PLAN.md`, `PROJECT_S
 uv run uvicorn backend.main:create_app --factory --reload
 ```
 
-The API is under `/api` (interactive docs at `/api/docs`); pages are served from `frontend/`. Sign in at `http://localhost:8000/pages/sign-in/` with the demo accounts in `data/developers/customers.csv` and `data/raw/staff_data.csv`. The session cookie is `Secure`, which browsers accept on `localhost`.
+The API is under `/api` (interactive docs at `/api/docs`); pages are served from `frontend/`.
+
+Open the app at `http://localhost:8000`, not `127.0.0.1`: the server only accepts form posts from the origin in `ALLOWED_ORIGIN` (default `http://localhost:8000`). The session cookie is `Secure`, which browsers accept on `localhost`.
+
+## What you can try today
+
+| Page | Address | What it does |
+|---|---|---|
+| Sign up | `/pages/sign-up/` | Creates a customer account. It does not sign you in; you go to Sign in. |
+| Sign in | `/pages/sign-in/` | Email, password and the role to sign in as (Customer by default). Add `?channel=kiosk` for the kiosk layout. |
+| Personalization | `/pages/personalization/` | Name, gender, preferred store and the two consent choices. A new customer lands here after their first sign-in. |
+
+The demo accounts are in `data/developers/customers.csv` (customers) and `data/raw/staff_data.csv` (store associates and the administrator); the `password` column holds each demo password. After sign-in, `/api/me` shows who you are. Pages for Home, Products, Cart and the rest arrive in later phases, so a successful sign-in currently ends on a "not found" page.
+
+Browsers show friendly errors under each field; rate limits (5 failed sign-ins per email, 30 per address, 10 sign-ups an hour per address) reset when the server restarts.
 
 ## Tests
 
